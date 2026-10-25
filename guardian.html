@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sakhi Guardian</title><style>
+body{margin:0;background:#14121a;color:#f3eefc;font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:16px}
+.c{background:#201c2b;border-radius:16px;padding:14px;margin:12px 0;border-left:6px solid #ff4d6d}.c.resolved{opacity:.45;border-color:#3ddc97}
+button,a.b{font:inherit;color:#fff;border:0;border-radius:10px;padding:9px 14px;background:#2d2840;cursor:pointer;text-decoration:none;display:inline-block;margin:4px 4px 0 0}
+.t{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:#2d2840;margin:2px}.t.on{background:#ff4d6d}.m{color:#9a92ad;font-size:13px}.h{font:11px monospace;word-break:break-all}
+</style></head><body>
+<h1 id="h"></h1><p class="m" id="sub"></p><div id="list"><p class="m">No active alerts. Waiting…</p></div>
+<script>
+const role=new URLSearchParams(location.search).get('role')==='contact'?'contact':'guardian';
+let me={lat:13.0827,lng:80.2707};navigator.geolocation?.getCurrentPosition(p=>me={lat:p.coords.latitude,lng:p.coords.longitude});
+$h=document.getElementById('h');$h.textContent=role==='contact'?'Trusted contact view':'Guardian view';
+document.getElementById('sub').textContent=role==='contact'?'Full details. Switch: ?role=guardian':'Anonymous: no name, location blurred ~100 m. Switch: ?role=contact';
+const T=['Trusted contacts notified','Nearby guardians alerted','Police 112 escalation (simulated)'];
+const dist=(a,b,c,d)=>{const r=x=>x*Math.PI/180,h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 2*6371e3*Math.asin(Math.sqrt(h))};
+const act=(id,a)=>fetch(`/api/alert/${id}/${a}`,{method:'POST',body:'{}'});
+new EventSource('/api/stream?role='+role).onmessage=e=>{
+ const L=JSON.parse(e.data).sort((a,b)=>b.t-a.t);if(!L.length)return;
+ document.getElementById('list').innerHTML=L.map(a=>{
+  const ev=Array.isArray(a.evidence)?a.evidence:null,n=ev?ev.length:a.evidence,d=a.lat!=null?Math.round(dist(me.lat,me.lng,a.lat,a.lng)):null;
+  return `<div class="c ${a.status}"><b>${role==='contact'?a.name+' · '+a.reason+(a.duress?' · DURESS':''):a.anon}</b> <span class="m">${new Date(a.t).toLocaleTimeString()} · ${a.status}</span><br>
+  ${T.map((x,i)=>`<span class="t ${a.tier>=i?'on':''}">${x}</span>`).join('')}<br>
+  <span class="m">${d!=null?'~'+d+' m from you · ':''}${a.responders} responding · ${n} evidence items</span><br>
+  ${a.lat!=null?`<a class="b" target="_blank" href="https://www.openstreetmap.org/?mlat=${a.lat}&mlon=${a.lng}#map=17/${a.lat}/${a.lng}">Open map</a>`:''}
+  ${a.status==='active'?`<button onclick="act('${a.id}','respond')">I'm responding</button><button onclick="act('${a.id}','resolve')">Mark resolved</button>`:''}
+  ${ev?ev.slice(-3).map(x=>`<div class="h">${x.kind} #${x.hash.slice(0,24)}…</div>`).join(''):''}</div>`}).join('')};
+</script></body></html>

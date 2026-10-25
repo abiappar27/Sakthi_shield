@@ -1,0 +1,1 @@
+{"name":"sakhi-shield","version":"1.1.0","scripts":{"start":"node server.js","test":"node test/e2e.js"},"devDependencies":{"jsdom":"^24.0.0"}}

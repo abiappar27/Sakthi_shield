@@ -1,0 +1,114 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Calculator</title><style>
+:root{--bg:#14121a;--card:#201c2b;--ink:#f3eefc;--mut:#9a92ad;--acc:#ff4d6d;--ok:#3ddc97}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;max-width:440px;margin:auto;min-height:100vh}
+button{font:inherit;color:inherit;border:0;border-radius:14px;padding:14px;background:#2d2840;cursor:pointer}
+.calc{padding:20px}#disp{font-size:48px;text-align:right;padding:60px 10px 20px;min-height:130px;word-break:break-all}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.keys button{font-size:22px;padding:20px}.keys .op{background:#e8872b}
+.app{display:none;padding:16px}.card{background:var(--card);border-radius:16px;padding:14px;margin:12px 0}
+h2{margin:0 0 8px;font-size:15px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+#sos{width:100%;font-size:26px;font-weight:700;background:var(--acc);padding:34px;border-radius:50%;aspect-ratio:1;max-width:210px;display:block;margin:10px auto}
+input{background:#2d2840;border:0;color:var(--ink);padding:10px;border-radius:10px;width:100%;font:inherit}
+.row{display:flex;gap:8px;align-items:center;margin:6px 0}.row>*{flex:1}small,.mut{color:var(--mut)}
+.on{background:var(--ok)!important;color:#000}.hash{font:11px monospace;color:var(--mut);word-break:break-all}
+#ov{position:fixed;inset:0;background:#000d;display:none;place-items:center;text-align:center;z-index:9}#ov>div{padding:30px}
+#cnt{font-size:90px;color:var(--acc)}
+</style></head><body>
+<div class="calc" id="calc"><div id="disp">0</div><div class="keys" id="keys"></div></div>
+<div class="app" id="app">
+ <h1 style="margin:6px 0">Sakhi Shield <small id="who"></small></h1>
+ <div id="act" class="card" style="display:none;background:#ff4d6d"><b>ALERT ACTIVE</b> – contacts notified, live location on.<div class="row"><a id="sms" style="color:#fff">Text my contact</a><button id="stop">I'm safe – stop alert</button></div></div>
+ <button id="sos">SOS</button><p class="mut" style="text-align:center;margin:0">Tap → 5 s cancel window → alert + recording starts</p>
+ <div class="card"><h2>Trusted contact (SMS fallback)</h2><input id="tel" placeholder="+91XXXXXXXXXX" inputmode="tel"></div>
+ <div class="card"><h2>Silent triggers</h2>
+  <div class="row"><input id="phrase" value="leave me alone"><button id="vbtn">Listen</button></div>
+  <div class="row"><button id="shake">Shake trigger: off</button><button id="fake">Fake call</button></div></div>
+ <div class="card"><h2>Walk with me</h2><div class="row"><input id="mins" type="number" step="0.1" value="0.2"><button id="walk">Start (min)</button></div><small id="wl" class="mut">Check in before the timer ends or escalation begins.</small></div>
+ <div class="card"><h2>Evidence locker (hash-chained)</h2><div class="row"><input id="note" placeholder="Log harassment message / note"><button id="add">Save</button></div>
+  <div id="lock"></div><div class="row"><button id="exp">Export for cybercrime.gov.in</button><button id="chk">Verify chain</button></div></div>
+ <div class="card"><h2>Stalkerware self-check</h2><div id="sw"></div><small id="swr" class="mut"></small></div>
+ <button id="lockapp" style="width:100%">Hide app</button>
+</div>
+<div id="ov"><div><h2 id="ovt">Sending alert in</h2><div id="cnt">5</div><button id="cancel">Cancel – I'm safe</button></div></div>
+<script>
+const $=s=>document.querySelector(s),PIN='1234',DURESS='0000',NAME='Priya';
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+const sha=async s=>hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));
+let expr='',alertId=null,pos={lat:13.0827,lng:80.2707},locker=JSON.parse(localStorage.locker||'[]'),rec=null,watch=null;
+// ---- Disguise calculator + duress PIN
+'7 8 9 ÷ 4 5 6 × 1 2 3 - C 0 = +'.split(' ').forEach(k=>{const b=document.createElement('button');b.textContent=k;
+ if('÷×-+='.includes(k))b.className='op';b.onclick=()=>key(k);$('#keys').append(b)});
+function key(k){
+ if(k==='C')expr='';
+ else if(k==='='){
+  if(expr===PIN)return openApp(false);
+  if(expr===DURESS){openApp(true);return silentDuress()}
+  try{expr=String(eval(expr.replace(/×/g,'*').replace(/÷/g,'/')))}catch{expr='Error'}
+ }else expr+=k;
+ $('#disp').textContent=expr||'0';
+}
+function openApp(fake){$('#calc').style.display='none';$('#app').style.display='block';$('#who').textContent=fake?'':'· '+NAME;
+ if(fake){$('#app').innerHTML='<h1>Notes</h1><p class="mut">No notes yet.</p><button onclick="location.reload()">Close</button>'}else render()}
+$('#lockapp').onclick=()=>location.reload();
+// ---- Alerts
+const post=(u,b)=>fetch(u,{method:'POST',body:JSON.stringify(b)}).then(r=>r.json()).catch(()=>({}));
+navigator.geolocation?.getCurrentPosition(p=>pos={lat:p.coords.latitude,lng:p.coords.longitude});
+async function sendAlert(reason,duress){
+ if(alertId)return;
+ alertId=(await post('/api/alert',{name:NAME,reason,duress,...pos})).id||'offline';
+ if(!duress){$('#act').style.display='block';$('#sms').href='sms:'+($('#tel').value||'')+'?body='+encodeURIComponent('SOS from '+NAME+'. Live location: https://maps.google.com/?q='+pos.lat+','+pos.lng)}
+ watch=navigator.geolocation?.watchPosition(p=>{pos={lat:p.coords.latitude,lng:p.coords.longitude};post(`/api/alert/${alertId}/loc`,pos)});
+ if(!duress)startRec();
+}
+const silentDuress=()=>sendAlert('Duress PIN entered',true);
+let tmr;function trigger(reason){
+ if(alertId||$('#ov').style.display==='grid')return;let n=5;$('#ovt').textContent='Sending alert in';$('#cnt').textContent=n;$('#ov').style.display='grid';
+ tmr=setInterval(()=>{$('#cnt').textContent=--n;if(n<=0){clearInterval(tmr);$('#ov').style.display='none';sendAlert(reason);}},1000);
+}
+$('#cancel').onclick=()=>{clearInterval(tmr);$('#ov').style.display='none'};
+$('#stop').onclick=()=>{if(alertId)post(`/api/alert/${alertId}/resolve`,{});alertId=null;try{rec?.stop()}catch{}rec=null;if(watch!=null)navigator.geolocation?.clearWatch(watch);$('#act').style.display='none'};
+$('#tel').value=localStorage.tel||'';$('#tel').onchange=()=>localStorage.tel=$('#tel').value;
+async function startRec(){ // event-only recording, starts AFTER trigger; hashes each 5s chunk
+ try{const s=await navigator.mediaDevices.getUserMedia({audio:true});rec=new MediaRecorder(s);
+  rec.ondataavailable=async e=>addEv('audio',hex(await crypto.subtle.digest('SHA-256',await e.data.arrayBuffer())));
+  rec.onstop=()=>s.getTracks().forEach(t=>t.stop());rec.start(5000)}catch{addEv('note','Audio unavailable; location log only')}
+}
+async function addEv(kind,data){
+ const prev=locker.length?locker.at(-1).hash:'0',ts=Date.now(),hash=await sha(prev+kind+ts+data);
+ const e={kind,data,ts,prev,hash};locker.push(e);localStorage.locker=JSON.stringify(locker);render();
+ if(alertId)post(`/api/alert/${alertId}/evidence`,{kind,hash,prev,ts});
+}
+function render(){if(!$('#lock'))return;$('#lock').innerHTML=locker.slice(-4).map(e=>`<div class="hash">${new Date(e.ts).toLocaleTimeString()} · ${e.kind}: ${e.data.slice(0,28)}<br>#${e.hash.slice(0,32)}…</div>`).join('')||'<small class="mut">Empty</small>'}
+$('#add').onclick=()=>{const v=$('#note').value.trim();if(v){addEv('note',v);$('#note').value=''}};
+$('#chk').onclick=async()=>{let prev='0';for(const e of locker){if(e.prev!==prev||e.hash!==await sha(prev+e.kind+e.ts+e.data))return alert('TAMPERING DETECTED at entry '+locker.indexOf(e));prev=e.hash}alert('Chain intact: '+locker.length+' entries verified')};
+$('#exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(locker,null,2)],{type:'application/json'}));a.download='evidence.json';a.click();open('https://cybercrime.gov.in')};
+$('#sos').onclick=()=>trigger('SOS button');
+// ---- Safe phrase (on-device speech recognition)
+let vr=null;$('#vbtn').onclick=()=>{
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return alert('Speech recognition needs Chrome/Edge');
+ if(vr){const v=vr;vr=null;v.stop();$('#vbtn').textContent='Listen';$('#vbtn').classList.remove('on');return}
+ vr=new SR();vr.continuous=true;vr.interimResults=true;
+ vr.onresult=e=>{const t=[...e.results].map(r=>r[0].transcript).join(' ').toLowerCase();if(t.includes($('#phrase').value.toLowerCase()))trigger('Safe phrase detected')};
+ vr.onend=()=>vr&&vr.start();vr.start();$('#vbtn').textContent='Listening…';$('#vbtn').classList.add('on');
+};
+// ---- Shake trigger
+let sh=false,last=0;$('#shake').onclick=async()=>{
+ if(window.DeviceMotionEvent?.requestPermission)await DeviceMotionEvent.requestPermission();
+ sh=!sh;$('#shake').textContent='Shake trigger: '+(sh?'on':'off');$('#shake').classList.toggle('on',sh)};
+addEventListener('devicemotion',e=>{if(!sh)return;const a=e.accelerationIncludingGravity;if(!a)return;
+ if(Math.hypot(a.x,a.y,a.z)>28){const n=Date.now();if(n-last<1000)trigger('Shake gesture');last=n}});
+// ---- Walk with me
+let wt=null;$('#walk').onclick=()=>{
+ if(wt){clearInterval(wt);wt=null;$('#walk').textContent='Start (min)';$('#wl').textContent='Checked in safely ✔';return}
+ let end=Date.now()+$('#mins').value*60000;$('#walk').textContent='I\'m safe (check in)';
+ wt=setInterval(()=>{const s=Math.ceil((end-Date.now())/1000);$('#wl').textContent='Check in within '+s+'s';
+  if(s<=0){clearInterval(wt);wt=null;$('#walk').textContent='Start (min)';trigger('Missed walk check-in')}},500)};
+// ---- Fake call
+$('#fake').onclick=()=>{const d=document.createElement('div');d.id='fc';d.style.cssText='position:fixed;inset:0;display:grid;place-items:center;text-align:center;z-index:9;background:#111';
+ d.innerHTML='<div><h2>Mom</h2><p>Incoming call…</p><button style="background:#3ddc97;color:#000" onclick="this.parentNode.parentNode.remove()">Accept</button> <button style="background:#ff4d6d" onclick="this.parentNode.parentNode.remove()">Decline</button></div>';
+ document.body.append(d);navigator.vibrate?.([400,200,400])};
+// ---- Stalkerware self-check
+['Battery drains unusually fast','Unknown app has Accessibility / Device Admin access','Phone is warm / uses data when idle','Someone knows things only my phone could reveal','Unknown profile or "Play Protect off" setting'].forEach((t,i)=>{
+ $('#sw').insertAdjacentHTML('beforeend',`<label class="row"><input type="checkbox" style="width:auto;flex:0" onchange="sw()"> <span>${t}</span></label>`)});
+window.sw=()=>{const n=document.querySelectorAll('#sw input:checked').length;$('#swr').textContent=n>=3?'High risk: use a different safe device, then check Settings → Apps → Special access, and call 181 / cybercrime helpline 1930.':n?'Some risk signs: review app permissions.':''};
+</script></body></html>
